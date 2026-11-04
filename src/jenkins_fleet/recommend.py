@@ -43,6 +43,8 @@ class Profile:
     idle: float = 0.25  # p95 utilization at/below this = underused
     queue_threshold: float = 0.5  # mean queue length that signals unmet demand
     headroom: float = 1.25
+    scaling_noise: float = 0.9  # multi-thread scaling at/above this counts as full cores
+    min_samples: int = 30  # fewer load samples than this lowers confidence
 
 
 @dataclass
@@ -81,14 +83,15 @@ def compute_capacity(
     effective: float | None = None
 
     if cores:
-        eff_scale = 1.0 if scaling is None else max(0.25, min(1.0, scaling))
+        # A few percent below perfect scaling is measurement noise (or builds
+        # running during the probe); only discount cores when it's clearly low.
+        degraded = scaling is not None and scaling < profile.scaling_noise
+        eff_scale = max(0.25, scaling) if degraded else 1.0  # type: ignore[type-var]
         effective = round(cores * eff_scale, 2)
         caps["cpu"] = math.floor(effective / profile.cpus_per_executor + 1e-9)
         msg = f"cpu: {cores} cores"
-        if scaling is not None and scaling < 0.9:
+        if degraded:
             msg += f", but multi-thread scaling is only {scaling:.0%} -> ~{effective:g} effective"
-        elif effective != cores:
-            msg += f" x {eff_scale:.0%} scaling = {effective:g} effective"
         reasons.append(f"{msg} / {profile.cpus_per_executor:g} per executor = {caps['cpu']}")
 
     if memory_mb:
@@ -109,6 +112,11 @@ def compute_capacity(
     if not caps:
         return None, None, effective, reasons
     limiting = min(caps, key=lambda k: caps[k])
+    if caps[limiting] < 1:
+        reasons.append(
+            f"{limiting} allows less than one build at this profile; using the minimum of 1"
+            " (the profile may be too large for this agent)"
+        )
     return max(1, caps[limiting]), limiting, effective, reasons
 
 
@@ -117,7 +125,14 @@ def recommend_node(
     bench: BenchmarkResult | None,
     load: LoadSummary | None,
     profile: Profile,
+    label_loads: list[LoadSummary] | None = None,
 ) -> Recommendation:
+    """``label_loads`` are the load summaries of the labels this node carries.
+
+    Jenkins only counts a queued build against a node's own queue when it can
+    run nowhere else, so builds waiting for a shared label (``linux``) show up
+    only in that label's queue. Those queues count as demand on the node too.
+    """
     bench = bench if bench and bench.ok else None
     cores = bench.cores if bench else None
     scaling = bench.cpu_scaling if bench else None
@@ -131,18 +146,30 @@ def recommend_node(
         reasons.append("no benchmark data: core count unknown, capacity is memory-only")
 
     saturated = underused = False
+    queue = load.mean_queue if load and load.samples else 0.0
+    busiest_label = max(
+        (ll for ll in label_loads or [] if ll.samples), key=lambda ll: ll.mean_queue, default=None
+    )
+    if busiest_label and busiest_label.mean_queue > queue:
+        queue = busiest_label.mean_queue
     if load and load.samples:
-        saturated = (
-            load.p95_utilization >= profile.saturation or load.mean_queue >= profile.queue_threshold
-        )
-        underused = (
-            load.p95_utilization <= profile.idle and load.mean_queue < profile.queue_threshold
-        )
+        saturated = load.p95_utilization >= profile.saturation or queue >= profile.queue_threshold
+        underused = load.p95_utilization <= profile.idle and queue < profile.queue_threshold
         reasons.append(
             f"load ({load.window} window, {load.samples} samples): p95 utilization"
             f" {load.p95_utilization:.0%}, p95 busy {load.p95_busy:g},"
             f" mean queue {load.mean_queue:g}"
         )
+        if busiest_label and busiest_label.mean_queue >= profile.queue_threshold:
+            reasons.append(
+                f"{busiest_label.scope} has a mean queue of {busiest_label.mean_queue:g}:"
+                " builds are waiting for nodes like this one"
+            )
+        if load.samples < profile.min_samples:
+            reasons.append(
+                f"only {load.samples} load samples: Jenkins' moving averages start at zero and"
+                " need time to converge, so utilization is understated (try again later)"
+            )
     else:
         reasons.append("no load statistics available")
 
@@ -168,8 +195,9 @@ def recommend_node(
 
     has_load = bool(load and load.samples)
     confidence = "high" if bench and has_load else "medium" if bench or has_load else "low"
-    if bench and bench.busy_executors_during_run:
-        confidence = "medium" if confidence == "high" else confidence
+    few_samples = has_load and load.samples < profile.min_samples  # type: ignore[union-attr]
+    if confidence == "high" and (few_samples or (bench and bench.busy_executors_during_run)):
+        confidence = "medium"
 
     return Recommendation(
         node=node.name,
@@ -183,7 +211,7 @@ def recommend_node(
         effective_cores=effective,
         memory_mb=memory,
         p95_utilization=load.p95_utilization if has_load else None,
-        mean_queue=load.mean_queue if has_load else None,
+        mean_queue=round(queue, 2) if has_load else None,
         reasons=reasons,
     )
 

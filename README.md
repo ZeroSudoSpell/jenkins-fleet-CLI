@@ -120,21 +120,23 @@ agents that are running builds are flagged, since their numbers will be low. Use
 
 ```text
 $ jenkins-fleet recommend --benchmark bench.json --explain
-NODE         CURRENT  RECOMMENDED  DELTA  CAPACITY  LIMIT  VERDICT        UTIL_P95  QUEUE_AVG  CONFIDENCE
------------  -------  -----------  -----  --------  -----  -------------  --------  ---------  ----------
-linux-big    8        15           7      15        cpu    scale-up       1         2          high
-linux-small  6        2            -4     2         cpu    overcommitted  0.167     0          high
+NODE         CURRENT  RECOMMENDED  DELTA  CAPACITY  LIMIT   VERDICT        UTIL_P95  QUEUE_AVG  CONFIDENCE
+-----------  -------  -----------  -----  --------  ------  -------------  --------  ---------  ----------
+linux-big    8        15           7      15        memory  scale-up       1         2          medium
+linux-small  6        2            -4     2         cpu     overcommitted  0.167     2          high
 
 linux-big:
-  - cpu: 16 cores x 95% scaling = 15.2 effective / 1 per executor = 15
+  - cpu: 16 cores / 1 per executor = 16
   - memory: (32768 - 1024 reserved) MiB / 2048 per executor = 15
   - load (long window, 100 samples): p95 utilization 100%, p95 busy 8, mean queue 2
-  - demand is unmet and cpu capacity allows 15
+  - label:docker has a mean queue of 2: builds are waiting for nodes like this one
+  - demand is unmet and memory capacity allows 15
 
 linux-small:
   - cpu: 4 cores, but multi-thread scaling is only 50% -> ~2 effective / 1 per executor = 2
   - memory: (8192 - 1024 reserved) MiB / 2048 per executor = 3
   - load (long window, 100 samples): p95 utilization 17%, p95 busy 1, mean queue 0
+  - label:linux has a mean queue of 2: builds are waiting for nodes like this one
   - 6 executors exceeds cpu capacity of 2: builds will contend
 
 fleet: 14 executors now, 17 recommended, 17 hardware capacity, p95 demand 9 busy (~12 with headroom)
@@ -153,12 +155,18 @@ you can tune:
 
 | cap | formula | flag (default) |
 |-----|---------|----------------|
-| CPU | `cores × scaling ÷ cpus-per-executor` | `--cpus-per-executor` (1.0) |
+| CPU | `cores ÷ cpus-per-executor`, with cores × scaling when scaling < 90% | `--cpus-per-executor` (1.0) |
 | memory | `(total − reserve) ÷ mem-per-executor` | `--mem-per-executor` (2048 MiB), `--reserve-mem` (1024 MiB) |
 | disk | `free ÷ disk-per-executor` | `--disk-per-executor` (0 = off) |
 
 **Demand** comes from load statistics: p95 utilization (busy ÷ online executors)
-and mean queue length.
+and mean queue length. The queue is the larger of the node's own queue and the
+queues of its labels. Jenkins only counts a waiting build against a node when it
+can run nowhere else, so a build waiting for `linux` shows up only in the
+`linux` label's queue.
+
+Capacity is never below 1. Scaling between 90% and 100% is treated as noise
+rather than lost cores.
 
 | situation | verdict | recommendation |
 |-----------|---------|----------------|
@@ -205,8 +213,12 @@ so `-o json | jq` works as expected.
 - **Cloud agents** (Kubernetes, EC2, …) are short-lived and get their executor
   count from a template. Use the recommendation to change the template, not
   the node.
-- Load statistics are moving averages kept in memory. They reset when the
-  controller restarts, so check `SAMPLES` before relying on a long window.
+- Load statistics are moving averages kept in memory. They start at zero and
+  reset when the controller restarts, so a young history understates load.
+  With fewer than 30 samples, `recommend` says so and lowers its confidence.
+- Container-aware numbers come from the benchmark. Jenkins' own memory monitor
+  reports the *host's* memory for agents running in containers, so a
+  recommendation made without `--run-benchmark` can overestimate capacity.
 - The probe measures the agent's own CPU and disk. Builds that run in Docker
   on another host, or that mostly wait on the network, need a profile tuned
   for that.

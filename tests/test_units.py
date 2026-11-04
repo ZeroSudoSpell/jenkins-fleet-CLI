@@ -182,3 +182,53 @@ def test_table_and_csv():
     assert t[0].split() == ["A", "B", "C"]
     assert t[2].split() == ["1", "-", "x,y"]
     assert csv_text(rows, cols).splitlines() == ["a,b,c", '1,,"x,y"', "22.5,yes,-"]
+
+
+def test_capacity_ignores_scaling_noise():
+    # Found on a real 1-core agent: 96% scaling must not turn 1 core into 0.
+    cap, limit, eff, reasons = compute_capacity(
+        Profile(), cores=1, scaling=0.96, memory_mb=None, disk_free_mb=None
+    )
+    assert (cap, limit, eff) == (1, "cpu", 1.0)
+    assert reasons == ["cpu: 1 cores / 1 per executor = 1"]
+
+
+def test_capacity_explains_minimum_of_one():
+    cap, limit, _, reasons = compute_capacity(
+        Profile(), cores=None, scaling=None, memory_mb=1536, disk_free_mb=None
+    )
+    assert (cap, limit) == (1, "memory")
+    assert "minimum of 1" in reasons[-1]
+
+
+def test_label_queue_counts_as_node_demand(nodes):
+    # Builds waiting for a shared label never show in a node's own queue.
+    small = nodes[2]
+    small.num_executors = 2
+    own = summarize(LOADS["computer/linux-small/loadStatistics"], small.name)
+    assert own.mean_queue == 0
+    label = summarize(LOADS["label/linux/loadStatistics"], "label:linux")
+    bench = _bench("linux-small")
+    bench.cpu_scaling = 1.0  # 4 effective cores; memory allows 3
+
+    without = recommend_node(small, bench, own, Profile())
+    assert without.verdict == "underused"
+
+    with_label = recommend_node(small, bench, own, Profile(), [label])
+    assert with_label.verdict == "scale-up" and with_label.recommended == 3
+    assert with_label.mean_queue == 2.0
+    assert any("label:linux has a mean queue of 2" in r for r in with_label.reasons)
+
+
+def test_few_samples_lower_confidence(nodes):
+    big = nodes[1]
+    data = LOADS["computer/linux-big/loadStatistics"]
+    short = {
+        k: {"min": {"history": v["min"]["history"][:8]}} for k, v in data.items() if k != "_class"
+    }
+    load = summarize(short, big.name)
+    assert load.samples == 8
+    bench = _bench("linux-big")
+    r = recommend_node(big, bench, load, Profile())
+    assert r.confidence == "medium"
+    assert any("only 8 load samples" in reason for reason in r.reasons)

@@ -490,7 +490,18 @@ def cmd_recommend(args: argparse.Namespace) -> int:
         saturation=args.saturation,
     )
     loads = parallel_map(safe_node_load(client, args.window), nodes)
-    recs = [recommend_node(n, bench.get(n.name), ld, profile) for n, ld in zip(nodes, loads)]
+    labels = sorted({lbl for n in nodes for lbl in n.labels})
+    by_label = {
+        s.scope.removeprefix("label:"): s
+        for s in parallel_map(safe_label_load(client, args.window), labels)
+        if s
+    }
+    recs = [
+        recommend_node(
+            n, bench.get(n.name), ld, profile, [by_label[x] for x in n.labels if x in by_label]
+        )
+        for n, ld in zip(nodes, loads)
+    ]
     try:
         overall: LoadSummary | None = overall_load(client, args.window)
     except JenkinsError:
