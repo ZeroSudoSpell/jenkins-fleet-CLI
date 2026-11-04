@@ -1,0 +1,99 @@
+{
+  "_class": "hudson.model.ComputerSet",
+  "computer": [
+    {
+      "_class": "hudson.model.Hudson$MasterComputer",
+      "displayName": "Built-In Node",
+      "numExecutors": 2,
+      "offline": false,
+      "temporarilyOffline": false,
+      "offlineCauseReason": "",
+      "idle": true,
+      "assignedLabels": [{"name": "built-in"}],
+      "executors": [{"idle": true}, {"idle": true}],
+      "monitorData": {
+        "hudson.node_monitors.SwapSpaceMonitor": {
+          "_class": "hudson.node_monitors.SwapSpaceMonitor$MemoryUsage2",
+          "availablePhysicalMemory": 6442450944,
+          "availableSwapSpace": 0,
+          "totalPhysicalMemory": 8589934592,
+          "totalSwapSpace": 0
+        },
+        "hudson.node_monitors.ArchitectureMonitor": "Linux (amd64)",
+        "hudson.node_monitors.DiskSpaceMonitor": {
+          "_class": "hudson.node_monitors.DiskSpaceMonitorDescriptor$DiskSpace",
+          "timestamp": 1762246800000,
+          "path": "/var/jenkins_home",
+          "size": 53687091200
+        },
+        "hudson.node_monitors.ResponseTimeMonitor": {"_class": "hudson.node_monitors.ResponseTimeMonitor$Data", "timestamp": 1762246800000, "average": 0},
+        "hudson.node_monitors.ClockMonitor": {"_class": "hudson.util.ClockDifference", "diff": 0}
+      }
+    },
+    {
+      "_class": "hudson.slaves.SlaveComputer",
+      "displayName": "linux-big",
+      "numExecutors": 8,
+      "offline": false,
+      "temporarilyOffline": false,
+      "offlineCauseReason": "",
+      "idle": false,
+      "assignedLabels": [{"name": "docker"}, {"name": "linux"}, {"name": "linux-big"}],
+      "executors": [{"idle": false}, {"idle": false}, {"idle": true}, {"idle": true},
+                    {"idle": true}, {"idle": true}, {"idle": true}, {"idle": true}],
+      "monitorData": {
+        "hudson.node_monitors.SwapSpaceMonitor": {
+          "availablePhysicalMemory": 17179869184,
+          "availableSwapSpace": 2147483648,
+          "totalPhysicalMemory": 34359738368,
+          "totalSwapSpace": 2147483648
+        },
+        "hudson.node_monitors.ArchitectureMonitor": "Linux (amd64)",
+        "hudson.node_monitors.DiskSpaceMonitor": {"path": "/home/jenkins", "size": 214748364800, "timestamp": 1762246800000},
+        "hudson.node_monitors.TemporarySpaceMonitor": {"path": "/tmp", "size": 10737418240, "timestamp": 1762246800000},
+        "hudson.node_monitors.ResponseTimeMonitor": {"average": 12, "timestamp": 1762246800000},
+        "hudson.node_monitors.ClockMonitor": {"diff": -3}
+      }
+    },
+    {
+      "_class": "hudson.slaves.SlaveComputer",
+      "displayName": "linux-small",
+      "numExecutors": 6,
+      "offline": false,
+      "temporarilyOffline": false,
+      "offlineCauseReason": "",
+      "idle": true,
+      "assignedLabels": [{"name": "linux"}, {"name": "linux-small"}],
+      "executors": [{"idle": true}, {"idle": true}, {"idle": true},
+                    {"idle": true}, {"idle": true}, {"idle": true}],
+      "monitorData": {
+        "hudson.node_monitors.SwapSpaceMonitor": {
+          "availablePhysicalMemory": 2147483648,
+          "availableSwapSpace": 0,
+          "totalPhysicalMemory": 8589934592,
+          "totalSwapSpace": 0
+        },
+        "hudson.node_monitors.ArchitectureMonitor": "Linux (aarch64)",
+        "hudson.node_monitors.DiskSpaceMonitor": {"path": "/srv/agent", "size": 21474836480, "timestamp": 1762246800000},
+        "hudson.node_monitors.ResponseTimeMonitor": {"average": 40, "timestamp": 1762246800000},
+        "hudson.node_monitors.ClockMonitor": {"diff": 120}
+      }
+    },
+    {
+      "_class": "hudson.slaves.SlaveComputer",
+      "displayName": "win 01",
+      "numExecutors": 2,
+      "offline": true,
+      "temporarilyOffline": false,
+      "offlineCauseReason": "Connection was broken",
+      "idle": true,
+      "assignedLabels": [{"name": "win 01"}, {"name": "windows"}],
+      "executors": [],
+      "monitorData": {
+        "hudson.node_monitors.SwapSpaceMonitor": null,
+        "hudson.node_monitors.ArchitectureMonitor": null,
+        "hudson.node_monitors.DiskSpaceMonitor": null
+      }
+    }
+  ]
+}

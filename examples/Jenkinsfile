@@ -1,0 +1,40 @@
+// Weekly fleet sizing report. Needs a "jenkins-fleet-token" username/password
+// credential holding a user and API token (Administer, for the benchmark).
+// JENKINS_URL is already set in every build environment.
+pipeline {
+    agent { label 'linux' }
+    triggers { cron('H 3 * * 1') } // Monday, early morning: quiet agents
+    options { timeout(time: 1, unit: 'HOURS') }
+    stages {
+        stage('Size the fleet') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'jenkins-fleet-token',
+                        usernameVariable: 'JENKINS_USER', passwordVariable: 'JENKINS_API_TOKEN')]) {
+                    sh '''
+                        python3 -m venv .venv
+                        .venv/bin/pip install -q git+https://github.com/ZeroSudoSpell/jenkins-fleet-CLI
+                        .venv/bin/jenkins-fleet benchmark --skip-busy --save bench.json -o csv > bench.csv
+                        set +e
+                        .venv/bin/jenkins-fleet recommend --benchmark bench.json --explain \
+                            --emit-groovy apply.groovy --check | tee recommendation.txt
+                        rc=$?
+                        set -e
+                        # 3 = some node should change: mark unstable, don't fail
+                        [ $rc -eq 3 ] && echo "executor changes recommended" > changes.flag
+                        [ $rc -eq 0 ] || [ $rc -eq 3 ]
+                    '''
+                }
+                script {
+                    if (fileExists('changes.flag')) {
+                        unstable('Executor counts drifted; see recommendation.txt and apply.groovy')
+                    }
+                }
+            }
+        }
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: 'bench.*, recommendation.txt, apply.groovy', allowEmptyArtifacts: true
+        }
+    }
+}

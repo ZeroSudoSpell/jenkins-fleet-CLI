@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jenkins-fleet"
+dynamic = ["version"]
+description = "Inventory, benchmark and right-size the agents of any Jenkins instance."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+dependencies = []
+keywords = ["jenkins", "ci", "capacity-planning", "benchmark", "devops"]
+classifiers = [
+  "Environment :: Console",
+  "Intended Audience :: System Administrators",
+  "Programming Language :: Python :: 3",
+  "Topic :: Software Development :: Build Tools",
+  "Topic :: System :: Benchmark",
+]
+
+[project.urls]
+Homepage = "https://github.com/ZeroSudoSpell/jenkins-fleet-CLI"
+Issues = "https://github.com/ZeroSudoSpell/jenkins-fleet-CLI/issues"
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "ruff>=0.4"]
+
+[project.scripts]
+jenkins-fleet = "jenkins_fleet.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "jenkins_fleet.__version__" }
+
+[tool.setuptools.package-data]
+jenkins_fleet = ["benchmark.groovy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["B905"]  # zip(strict=) is noise for same-length lists built together
