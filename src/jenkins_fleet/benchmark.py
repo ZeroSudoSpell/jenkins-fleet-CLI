@@ -109,16 +109,18 @@ def benchmark_node(client: JenkinsClient, node: Node, script: str) -> BenchmarkR
 def run_benchmarks(
     client: JenkinsClient,
     nodes: list[Node],
-    script: str,
+    script: str | Callable[[Node], str],
     parallel: int = 1,
     on_result: Callable[[BenchmarkResult], None] | None = None,
 ) -> list[BenchmarkResult]:
     """Benchmark nodes, ``parallel`` at a time (default: one by one, so
-    agents that share a hypervisor don't skew each other's numbers)."""
+    agents that share a hypervisor don't skew each other's numbers).
+
+    ``script`` is the probe, or a function that builds it for each node."""
     results: list[BenchmarkResult] = []
 
     def task(node: Node) -> BenchmarkResult:
-        res = benchmark_node(client, node, script)
+        res = benchmark_node(client, node, script(node) if callable(script) else script)
         if on_result:
             on_result(res)
         return res

@@ -384,7 +384,14 @@ def _benchmark(
         if busy:
             eprint("skipping busy agents: " + ", ".join(busy))
         nodes = [n for n in nodes if not n.busy_executors]
-    script = build_script(args.cpu_seconds, args.disk_mb, args.small_files, args.disk_path)
+
+    def script_for(node: Node) -> str:
+        # Default to the directory Jenkins' disk monitor watches for this node:
+        # the agent's root directory (JENKINS_HOME on the controller).
+        return build_script(
+            args.cpu_seconds, args.disk_mb, args.small_files, args.disk_path or node.disk_path
+        )
+
     eprint(f"benchmarking {len(nodes)} node(s), {args.parallel} at a time ...")
 
     def progress(r: BenchmarkResult) -> None:
@@ -393,7 +400,7 @@ def _benchmark(
         for w in r.warnings:
             eprint(f"    warning: {w}")
 
-    return run_benchmarks(client, nodes, script, args.parallel, progress)
+    return run_benchmarks(client, nodes, script_for, args.parallel, progress)
 
 
 def _bench_timeout(args: argparse.Namespace) -> float:

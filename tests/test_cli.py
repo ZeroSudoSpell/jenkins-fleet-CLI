@@ -76,6 +76,16 @@ def test_benchmark_saves_results(cli_env, capsys, tmp_path):
     posts = [r for r in FakeJenkins.requests if r[0] == "POST"]
     assert posts[0][1] == "computer/linux-big/scriptText"
     assert "def cpuSeconds = 0.5" in posts[0][2]["script"][0]
+    # each node is tested in the root directory its disk monitor reports
+    assert "def diskPath = '/home/jenkins'" in posts[0][2]["script"][0]
+    assert "def diskPath = '/srv/agent'" in posts[1][2]["script"][0]
+
+
+def test_benchmark_disk_path_override(cli_env, capsys):
+    code, _, _ = run(capsys, "benchmark", "-n", "linux-big", "--disk-path", "/scratch")
+    assert code == 0
+    posts = [r for r in FakeJenkins.requests if r[0] == "POST"]
+    assert "def diskPath = '/scratch'" in posts[0][2]["script"][0]
 
 
 def test_benchmark_failure_exit_code(cli_env, capsys):

@@ -91,11 +91,16 @@ try {
 }
 
 // --------------------------------------------------------------- Disk
-if (diskPath == null || diskPath == "") diskPath = System.getProperty("user.dir")
-result.disk_path = diskPath
-def dir = new File(diskPath, ".jenkins-fleet-bench-" + System.nanoTime())
+// Use the requested directory; with none given, the first writable one of
+// the JVM's working directory and its temp directory.
+def candidates = (diskPath ? [diskPath] : [System.getProperty("user.dir"), System.getProperty("java.io.tmpdir")])
+def dir = null
+for (c in candidates) {
+    def d = new File(c, ".jenkins-fleet-bench-" + System.nanoTime())
+    if (d.mkdirs()) { dir = d; result.disk_path = c; break }
+}
 try {
-    if (!dir.mkdirs()) throw new IOException("cannot create " + dir)
+    if (dir == null) throw new IOException("cannot create a scratch directory in " + candidates)
     result.disk_free_mb = (long) (dir.getUsableSpace() / MB)
 
     if (diskMb > 0) {
@@ -132,8 +137,8 @@ try {
 } catch (Throwable t) {
     errors << ("disk: " + t)
 } finally {
-    dir.listFiles()?.each { it.delete() }
-    dir.delete()
+    dir?.listFiles()?.each { it.delete() }
+    dir?.delete()
 }
 
 result.errors = errors

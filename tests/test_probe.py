@@ -43,3 +43,21 @@ def test_probe_runs_on_a_real_jvm(tmp_path):
     assert result.disk_write_mbps > 0 and result.small_files_per_sec > 0
     # the probe cleans up after itself
     assert sorted(p.name for p in tmp_path.iterdir()) == ["probe.groovy"]
+
+
+def test_probe_falls_back_when_no_path_given(tmp_path):
+    script = tmp_path / "probe.groovy"
+    script.write_text(build_script(cpu_seconds=0.1, disk_mb=1, small_files=5, disk_path=None))
+    work = tmp_path / "cwd"
+    work.mkdir()
+    proc = subprocess.run(
+        ["java", "-cp", GROOVY_JAR, "groovy.ui.GroovyMain", str(script)],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        cwd=work,
+    )
+    result = parse_output("local", proc.stdout)
+    assert result.ok and result.warnings == [], result.warnings
+    assert result.disk_path == str(work)
+    assert list(work.iterdir()) == []
