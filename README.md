@@ -1,5 +1,7 @@
 # jenkins-fleet
 
+NOTE from me: This was created to ease my sanity on Jenkins agent probing
+
 **Inventory, benchmark and right-size the agents of any Jenkins instance.**
 
 Executor counts are usually guessed once ("it has 8 cores, give it 8") and never
